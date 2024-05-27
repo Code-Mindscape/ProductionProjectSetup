@@ -2,7 +2,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/uploadOnCloudinary.js";
+import { uploadOnCloudinary } from "../utils/cloundinary.js";
 
 const registerUser = asyncHandler(async (req, res) => {
   //get user details frontend
@@ -16,22 +16,33 @@ const registerUser = asyncHandler(async (req, res) => {
   //return res
 
   const { fullName, email, username, password } = req.body;
-  console.log("email: " + email, "username:" + username);
+
+
   if (
     [fullName, email, username, password].some((field) => field?.trim() === "")
   ) {
     throw new ApiError(400, "All fields are required");
   }
-  const exitedUser = User.findOne({
+
+  const exitedUser = await User.findOne({
     $or: [{ email }, { username }],
   });
 
   if (exitedUser) {
     throw new ApiError(409, "User already exists");
   }
-
-  const avatarLocalPath = req.files?.avatar[0]?.path;
-  const coverImageLocalPath = req.files?.coverImage[0]?.path;
+ 
+  
+  // const avatarLocalPath = req.files?.avatar[0]?.path;
+  // const coverImageLocalPath = req.files?.coverImage[0]?.path;
+  let avatarLocalPath;
+  if(req.files && Array.isArray(req.files.avatar) && req.files.avatar.length > 0){
+    avatarLocalPath = req.files.avatar[0].path;
+  }
+  let coverImageLocalPath;
+  if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0){
+    coverImageLocalPath = req.files.coverImage[0].path;
+  }
 
   if (!avatarLocalPath) {
     throw new ApiError(400, "Avatar is required");
@@ -53,14 +64,13 @@ const registerUser = asyncHandler(async (req, res) => {
   });
 
   const createdUser = await User.findOne({ _id: user._id }).select(
-    "-password -refreshToken"
-  );
-  if (!createdUser) {
+      "-password -refreshToken"
+    );
+    if (!createdUser) {
     throw new ApiError(500, "Something went wrong whhile registering the user");
   }
 
-  res
-    .status(200)
+  res.status(200)
     .json(new ApiResponse(200, createdUser, "User created successfully"));
 });
 
