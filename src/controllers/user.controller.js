@@ -4,21 +4,20 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloundinary.js";
 
-const generateAccessTokenAndRefreshToken = async (userId)=>{
+const generateAccessTokenAndRefreshToken = async (userId) => {
   try {
     const user = await User.findById(userId);
-    const accessToken = user.generateAccessToken()
-    const refreshToken = user.generateRefreshToken()
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
 
     user.refreshToken = refreshToken;
-    user.save({validateBeforeSave: false});
+    user.save({ validateBeforeSave: false });
 
-    return {accessToken, refreshToken}
-
+    return { accessToken, refreshToken };
   } catch (error) {
-    throw new ApiError(500, "Error generating tokens")
+    throw new ApiError(500, "Error generating tokens");
   }
-}
+};
 
 const registerUser = asyncHandler(async (req, res) => {
   //get user details frontend
@@ -33,7 +32,6 @@ const registerUser = asyncHandler(async (req, res) => {
 
   const { fullName, email, username, password } = req.body;
 
-
   if (
     [fullName, email, username, password].some((field) => field?.trim() === "")
   ) {
@@ -47,16 +45,23 @@ const registerUser = asyncHandler(async (req, res) => {
   if (exitedUser) {
     throw new ApiError(409, "User already exists");
   }
- 
-  
+
   // const avatarLocalPath = req.files?.avatar[0]?.path;
   // const coverImageLocalPath = req.files?.coverImage[0]?.path;
   let avatarLocalPath;
-  if(req.files && Array.isArray(req.files.avatar) && req.files.avatar.length > 0){
+  if (
+    req.files &&
+    Array.isArray(req.files.avatar) &&
+    req.files.avatar.length > 0
+  ) {
     avatarLocalPath = req.files.avatar[0].path;
   }
   let coverImageLocalPath;
-  if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0){
+  if (
+    req.files &&
+    Array.isArray(req.files.coverImage) &&
+    req.files.coverImage.length > 0
+  ) {
     coverImageLocalPath = req.files.coverImage[0].path;
   }
 
@@ -80,13 +85,14 @@ const registerUser = asyncHandler(async (req, res) => {
   });
 
   const createdUser = await User.findOne({ _id: user._id }).select(
-      "-password -refreshToken"
-    );
-    if (!createdUser) {
+    "-password -refreshToken"
+  );
+  if (!createdUser) {
     throw new ApiError(500, "Something went wrong while registering the user");
   }
 
-  res.status(200)
+  res
+    .status(200)
     .json(new ApiResponse(200, createdUser, "User created successfully"));
 });
 
@@ -94,30 +100,47 @@ const loginUser = asyncHandler(async (req, res) => {
   // getting the user details
   const { username, email, password } = req.body;
 
-  if(!username || !email ){
+  if (!username || !email) {
     throw new ApiError(400, "Username or email is required");
   }
   const user = await User.findOne({
-    $or:[{username},{email}]
-  }) 
+    $or: [{ username }, { email }],
+  });
 
-  if(!user){
+  if (!user) {
     throw new ApiError(404, "User not found");
   }
-  
-  const isPasswordValid = await user.isPasswordCorrect(password)
-  if(!isPasswordValid){
+
+  const isPasswordValid = await user.isPasswordCorrect(password);
+  if (!isPasswordValid) {
     throw new ApiError(401, "Invalid credentials");
   }
-  
-  const {accessToken, refreshToken} = await generateAccessTokenAndRefreshToken(user._id);
-  
-  
-  const loggedInUser = await user.findById(user._id).select(
-    "-password -refreshToken"
-  )
-  
 
-})
+  const { accessToken, refreshToken } =
+    await generateAccessTokenAndRefreshToken(user._id);
+
+  const loggedInUser = await user
+    .findById(user._id)
+    .select("-password -refreshToken");
+
+  const Options = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  res
+    .status(200)
+    .cookie("accessToken", accessToken, Options)
+    .cookie("refreshToken", refreshToken, Options)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          user: loggedInUser, accessToken, refreshToken,
+        },
+        "User logged in successfully"
+      )
+    );
+});
 
 export { registerUser };
